@@ -1,35 +1,84 @@
-import React, { useState } from "react";
-import Papa from "papaparse";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { UploadCloud } from "lucide-react";
+import React, { useState } from 'react';
+import Papa from 'papaparse';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { UploadCloud } from 'lucide-react';
 
-const ScheduleTable = ({ schedule, type }) => (
-  <div>
-    <h4 className="text-md font-medium mb-2">{type} Payment Schedule</h4>
-    <table className="min-w-full divide-y divide-gray-200">
-      <thead>
-        <tr>
-          <th className="px-4 py-2 text-left">Date</th>
-          <th className="px-4 py-2 text-right">Interest</th>
-          <th className="px-4 py-2 text-right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {schedule.map((payment, index) => (
-          <tr key={index} className="border-t">
-            <td className="px-4 py-2">{payment.date}</td>
-            <td className="px-4 py-2 text-right">
-              {payment.interest.toLocaleString()}
-            </td>
-            <td className="px-4 py-2 text-right">
-              {payment.totalPayable.toLocaleString()}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+// ... (previous code remains the same until calculateHistoricalData function)
+
+const calculateHistoricalData = (data) => {
+  const calculations = {
+    '8.33': { yearlyData: {}, total: 0 },
+    '1.16': { yearlyData: {}, total: 0 }
+  };
+
+  // Process data by financial year (Feb-Jan)
+  data.forEach(row => {
+    const wageMonth = row['Wage Month (all the months from date of joining to date of leaving)'];
+    if (!wageMonth) return;
+
+    const [month, yearStr] = wageMonth.split('/');
+    const monthNum = parseInt(month);
+    const year = parseInt(yearStr);
+    
+    // New FY calculation: If month is January, it belongs to previous year's FY
+    // For all other months, they belong to the current year's FY
+    const fy = monthNum === 1 
+      ? `${year-1}-${year.toString().slice(2)}`
+      : `${year}-${(year+1).toString().slice(2)}`;
+    
+    if (!calculations['8.33'].yearlyData[fy]) {
+      calculations['8.33'].yearlyData[fy] = { 
+        wages: 0, 
+        contribution: 0, 
+        paid: 0, 
+        difference: 0, 
+        interest: 0, 
+        total: 0 
+      };
+      calculations['1.16'].yearlyData[fy] = { 
+        wages: 0, 
+        contribution: 0, 
+        paid: 0, 
+        difference: 0, 
+        interest: 0, 
+        total: 0 
+      };
+    }
+
+    const wages = parseInt(row['Wages on which PF contribution was paid']) || 0;
+    const contribution833 = Math.round(wages * 0.0833);
+    const paid = getFixedAmount(monthNum, year);
+
+    calculations['8.33'].yearlyData[fy].wages += wages;
+    calculations['8.33'].yearlyData[fy].contribution += contribution833;
+    calculations['8.33'].yearlyData[fy].paid += paid;
+
+    if (year > 2014 || (year === 2014 && monthNum >= 9)) {
+      const contribution116 = Math.round(wages * 0.0116);
+      calculations['1.16'].yearlyData[fy].wages += wages;
+      calculations['1.16'].yearlyData[fy].contribution += contribution116;
+    }
+  });
+
+  // Rest of the calculation remains the same
+  ['8.33', '1.16'].forEach(rate => {
+    let cumulativeBalance = 0;
+    Object.entries(calculations[rate].yearlyData)
+      .filter(([fy]) => fy <= '2023-24')
+      .forEach(([fy, yearData]) => {
+        yearData.difference = Math.max(yearData.contribution - yearData.paid, 0);
+        const interestRate = getInterestRate(fy);
+        yearData.interest = Math.round((cumulativeBalance + yearData.difference) * interestRate / 100);
+        yearData.total = yearData.difference + yearData.interest;
+        cumulativeBalance += yearData.total;
+        if (fy === '2023-24') {
+          calculations[rate].total = cumulativeBalance;
+        }
+      });
+  });
+
+  return calculations;
+};
 
 const PensionCalculator = () => {
   const [results, setResults] = useState(null);
@@ -55,6 +104,8 @@ const PensionCalculator = () => {
       "30-04-2025",
       "31-05-2025",
       "30-06-2025",
+      "31-07-2025",
+      "31-08-2025",
     ];
 
     let baseAmount = openingBalance;
