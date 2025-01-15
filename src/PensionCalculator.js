@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { UploadCloud } from 'lucide-react';
 
 // ... (previous code remains the same until calculateHistoricalData function)
