@@ -227,7 +227,8 @@ const ScheduleTable = ({ schedule, type }) => {
 
 // Move CombinedScheduleTable from inside PreviewPensionCalculator to here
 // Add this after ScheduleTable component and before PreviewPensionCalculator
-const CombinedScheduleTable = ({ schedule833, schedule116 }) => {
+const CombinedScheduleTable = ({ schedule833, schedule116, fileName }) => {
+  // Added fileName here
   const isFinancialYearEnd = (date) => {
     return date.endsWith("-03-2024") || date.endsWith("-03-2025");
   };
@@ -251,7 +252,11 @@ const CombinedScheduleTable = ({ schedule833, schedule116 }) => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", "combined-schedule.csv");
+    // Use fileName if available
+    const downloadName = fileName
+      ? `${fileName}_combined-schedule.csv`
+      : "combined-schedule.csv";
+    link.setAttribute("download", downloadName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -261,8 +266,14 @@ const CombinedScheduleTable = ({ schedule833, schedule116 }) => {
     const ws = XLSX.utils.json_to_sheet(prepareScheduleData());
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-    XLSX.writeFile(wb, "combined-schedule.xlsx");
+    // Use fileName if available
+    const downloadName = fileName
+      ? `${fileName}_combined-schedule.xlsx`
+      : "combined-schedule.xlsx";
+    XLSX.writeFile(wb, downloadName);
   };
+
+  // Rest of the component remains the same
 
   return (
     <div className="w-full mt-8">
@@ -359,6 +370,7 @@ const PreviewPensionCalculator = () => {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
 
   const calculateInterestBearingBalance = (monthlyDifferences) => {
     return Object.entries(monthlyDifferences).reduce(
@@ -619,6 +631,8 @@ const PreviewPensionCalculator = () => {
 
     setLoading(true);
     setError("");
+    // Add this line to store filename
+    setUploadedFileName(file.name.split(".")[0]);
 
     try {
       const text = await file.text();
@@ -777,6 +791,7 @@ const PreviewPensionCalculator = () => {
               <CombinedScheduleTable
                 schedule833={results.schedules["8.33"]}
                 schedule116={results.schedules["1.16"]}
+                fileName={uploadedFileName}
               />
             </div>
           )}
