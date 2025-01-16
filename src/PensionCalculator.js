@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { UploadCloud } from "lucide-react";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx";
 
 // Historical interest rates by financial year
 const HISTORICAL_INTEREST_RATES = {
@@ -63,53 +65,292 @@ const calculatePaidAmount = (month, year) => {
   return 1250;
 };
 
+const DownloadButton = ({ data, filename, type }) => {
+  const downloadData = () => {
+    if (type === "csv") {
+      const csvContent = Papa.unparse(data);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", `${filename}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (type === "excel") {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+      XLSX.writeFile(wb, `${filename}.xlsx`);
+    }
+  };
+
+  return (
+    <button
+      onClick={downloadData}
+      className="inline-flex items-center px-3 py-1 mr-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+    >
+      <Download className="w-4 h-4 mr-2" />
+      Download {type.toUpperCase()}
+    </button>
+  );
+};
+
+const DownloadButtons = ({ scheduleData, type }) => {
+  const prepareScheduleData = () => {
+    return scheduleData.map((row) => ({
+      Date: row.date,
+      "Opening Balance": row.totalPayable - row.interest,
+      Interest: row.interest,
+      "Closing Balance": row.totalPayable,
+    }));
+  };
+
+  return (
+    <div className="flex gap-2 mb-4">
+      <DownloadButton
+        data={prepareScheduleData()}
+        filename={`${type}-schedule`}
+        type="csv"
+      />
+      <DownloadButton
+        data={prepareScheduleData()}
+        filename={`${type}-schedule`}
+        type="excel"
+      />
+    </div>
+  );
+};
+
 const ScheduleTable = ({ schedule, type }) => {
   const isFinancialYearEnd = (date) => {
     return date.endsWith("-03-2024") || date.endsWith("-03-2025");
   };
 
+  const prepareScheduleData = () => {
+    return schedule.map((row) => ({
+      Date: row.date,
+      "Opening Balance": row.totalPayable - row.interest,
+      Interest: row.interest,
+      "Closing Balance": row.totalPayable,
+    }));
+  };
+
+  const downloadCSV = () => {
+    const csvContent = Papa.unparse(prepareScheduleData());
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `${type}-schedule.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(prepareScheduleData());
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, `${type}-schedule.xlsx`);
+  };
+
   return (
-    <div>
-      <h4 className="text-md font-medium mb-2">{type} Payment Schedule</h4>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead>
-          <tr>
-            <th className="px-4 py-2 text-left">Date</th>
-            <th className="px-4 py-2 text-right">Opening Balance</th>
-            <th className="px-4 py-2 text-right">Interest</th>
-            <th className="px-4 py-2 text-right">Closing Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {schedule?.map((payment, index) => {
-            const prevPayment = index > 0 ? schedule[index - 1] : null;
-            return (
-              <tr
-                key={index}
-                className={`border-t ${
-                  isFinancialYearEnd(payment.date)
-                    ? "bg-gray-50 font-medium"
-                    : ""
-                }`}
-              >
-                <td className="px-4 py-2">{payment.date}</td>
-                <td className="px-4 py-2 text-right">
-                  {(index === 0
-                    ? payment.totalPayable
-                    : prevPayment?.totalPayable
-                  ).toLocaleString()}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {payment.interest.toLocaleString()}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {payment.totalPayable.toLocaleString()}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="text-md font-medium">{type} Payment Schedule</h4>
+        <div className="flex gap-2">
+          <button
+            onClick={downloadCSV}
+            className="inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download CSV
+          </button>
+          <button
+            onClick={downloadExcel}
+            className="inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download Excel
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto border rounded-lg">
+        <table className="w-full table-auto">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="px-4 py-2 text-left border-b border-r">Date</th>
+              <th className="px-4 py-2 text-right border-b border-r">
+                Opening Balance
+              </th>
+              <th className="px-4 py-2 text-right border-b border-r">
+                Interest
+              </th>
+              <th className="px-4 py-2 text-right border-b">Closing Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {schedule?.map((payment, index) => {
+              const prevPayment = index > 0 ? schedule[index - 1] : null;
+              return (
+                <tr
+                  key={index}
+                  className={`${
+                    isFinancialYearEnd(payment.date)
+                      ? "bg-gray-50 font-medium"
+                      : ""
+                  } hover:bg-gray-50`}
+                >
+                  <td className="px-4 py-2 border-b border-r">
+                    {payment.date}
+                  </td>
+                  <td className="px-4 py-2 text-right border-b border-r">
+                    {(index === 0
+                      ? payment.totalPayable
+                      : prevPayment?.totalPayable
+                    ).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border-b border-r">
+                    {payment.interest.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border-b">
+                    {payment.totalPayable.toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// Move CombinedScheduleTable from inside PreviewPensionCalculator to here
+// Add this after ScheduleTable component and before PreviewPensionCalculator
+const CombinedScheduleTable = ({ schedule833, schedule116 }) => {
+  const isFinancialYearEnd = (date) => {
+    return date.endsWith("-03-2024") || date.endsWith("-03-2025");
+  };
+
+  const prepareScheduleData = () => {
+    return schedule833.map((row, index) => {
+      const row116 = schedule116[index];
+      return {
+        Date: row.date,
+        "Opening Balance 8.33%": row.totalPayable - row.interest,
+        "Opening Balance 1.16%": row116.totalPayable - row116.interest,
+        "Interest 8.33%": row.interest,
+        "Interest 1.16%": row116.interest,
+        "Total Closing Balance": row.totalPayable + row116.totalPayable,
+      };
+    });
+  };
+
+  const downloadCSV = () => {
+    const csvContent = Papa.unparse(prepareScheduleData());
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "combined-schedule.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(prepareScheduleData());
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, "combined-schedule.xlsx");
+  };
+
+  return (
+    <div className="w-full mt-8">
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="text-md font-medium">Combined Payment Schedule</h4>
+        <div className="flex gap-2">
+          <button
+            onClick={downloadCSV}
+            className="inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download CSV
+          </button>
+          <button
+            onClick={downloadExcel}
+            className="inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download Excel
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full table-auto border border-collapse border-slate-400">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="px-4 py-2 text-left border border-slate-300">
+                Date
+              </th>
+              <th className="px-4 py-2 text-right border border-slate-300">
+                Opening Balance (8.33%)
+              </th>
+              <th className="px-4 py-2 text-right border border-slate-300">
+                Interest (8.33%)
+              </th>
+              <th className="px-4 py-2 text-right border border-slate-300">
+                Opening Balance (1.16%)
+              </th>
+              <th className="px-4 py-2 text-right border border-slate-300">
+                Interest (1.16%)
+              </th>
+              <th className="px-4 py-2 text-right border border-slate-300">
+                Total Closing Balance
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {schedule833.map((payment833, index) => {
+              const payment116 = schedule116[index];
+              return (
+                <tr
+                  key={index}
+                  className={`${
+                    isFinancialYearEnd(payment833.date)
+                      ? "bg-gray-50 font-medium"
+                      : ""
+                  } hover:bg-gray-50`}
+                >
+                  <td className="px-4 py-2 border border-slate-300">
+                    {payment833.date}
+                  </td>
+                  <td className="px-4 py-2 text-right border border-slate-300">
+                    {(
+                      payment833.totalPayable - payment833.interest
+                    ).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border border-slate-300">
+                    {payment833.interest.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border border-slate-300">
+                    {(
+                      payment116.totalPayable - payment116.interest
+                    ).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border border-slate-300">
+                    {payment116.interest.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right border border-slate-300">
+                    {(
+                      payment833.totalPayable + payment116.totalPayable
+                    ).toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
@@ -260,17 +501,19 @@ const PreviewPensionCalculator = () => {
         const yearlyInterestRate = getInterestRateForYear(fy);
 
         // Calculate interest on accumulated balance from previous years
-        const interestOnCumulativeBalance = Math.round(
+        const interestOnCumulativeBalance = Math.ceil(
           (cumulativeBalance * yearlyInterestRate) / 100
         );
 
         // Calculate interest on current year's IBB
-        const interestOnCurrentYear = Math.round(
+        const interestOnCurrentYear = Math.ceil(
           (currentYearIBB * yearlyInterestRate) / 1200
         );
 
         // Total interest for the year is sum of both
-        yearData.interest = interestOnCumulativeBalance + interestOnCurrentYear;
+        yearData.interest = Math.ceil(
+          interestOnCumulativeBalance + interestOnCurrentYear
+        );
 
         // Update total including compounded interest
         yearData.total =
@@ -450,54 +693,74 @@ const PreviewPensionCalculator = () => {
             <div className="space-y-8">
               <div>
                 <h3 className="text-lg font-semibold mb-4">Historical Data</h3>
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-left">Year</th>
-                      <th className="px-4 py-2 text-right">Interest Rate</th>
-                      <th className="px-4 py-2 text-right">8.33%</th>
-                      <th className="px-4 py-2 text-right">Interest</th>
-                      <th className="px-4 py-2 text-right">Total</th>
-                      <th className="px-4 py-2 text-right">1.16%</th>
-                      <th className="px-4 py-2 text-right">Interest</th>
-                      <th className="px-4 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(
-                      results.historicalData["8.33"].yearlyData
-                    ).map(([fy, data833]) => {
-                      const data116 =
-                        results.historicalData["1.16"].yearlyData[fy];
-                      return (
-                        <tr key={fy} className="border-t">
-                          <td className="px-4 py-2">{fy}</td>
-                          <td className="px-4 py-2 text-right">
-                            {getInterestRateForYear(fy)}%
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data833.difference.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data833.interest.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data833.total.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data116?.contribution.toLocaleString() || "0"}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data116?.interest.toLocaleString() || "0"}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            {data116?.total.toLocaleString() || "0"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full table-auto border border-collapse border-slate-400">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left border border-slate-300">
+                          Year
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          Interest Rate
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          8.33%
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          Interest
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          Total
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          1.16%
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          Interest
+                        </th>
+                        <th className="px-4 py-2 text-right border border-slate-300">
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(
+                        results.historicalData["8.33"].yearlyData
+                      ).map(([fy, data833]) => {
+                        const data116 =
+                          results.historicalData["1.16"].yearlyData[fy];
+                        return (
+                          <tr key={fy} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 border border-slate-300">
+                              {fy}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {getInterestRateForYear(fy)}%
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data833.difference.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data833.interest.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data833.total.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data116?.contribution.toLocaleString() || "0"}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data116?.interest.toLocaleString() || "0"}
+                            </td>
+                            <td className="px-4 py-2 text-right border border-slate-300">
+                              {data116?.total.toLocaleString() || "0"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8">
@@ -510,12 +773,17 @@ const PreviewPensionCalculator = () => {
                   type="1.16%"
                 />
               </div>
+
+              <CombinedScheduleTable
+                schedule833={results.schedules["8.33"]}
+                schedule116={results.schedules["1.16"]}
+              />
             </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
-};
+}; // End of PreviewPensionCalculator
 
 export default PreviewPensionCalculator;
