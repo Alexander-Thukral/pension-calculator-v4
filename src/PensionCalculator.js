@@ -559,6 +559,9 @@ const PreviewPensionCalculator = () => {
       "28-02-2025",
       "31-03-2025",
       "30-04-2025",
+      "31-05-2025"
+      "30-06-2025"
+      "31-07-2025"
     ];
 
     let baseAmount = openingBalance;
